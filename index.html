@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quad Tree</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+        }
+        canvas {
+            border: 1px solid black;
+            display: block;
+            margin: 0 auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>Quad Tree</h1>
+    <canvas id="quadTreeCanvas" width="600" height="600"></canvas>
+    <script>
+        class Punto {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+            }
+        }
+
+        class Rectangulo {
+            constructor(x, y, w, h) {
+                this.x = x;
+                this.y = y;
+                this.w = w;
+                this.h = h;
+            }
+
+            contiene(punto) {
+                return (
+                    punto.x >= this.x - this.w &&
+                    punto.x <= this.x + this.w &&
+                    punto.y >= this.y - this.h &&
+                    punto.y <= this.y + this.h
+                );
+            }
+
+            intersecta(rango) {
+                return !(
+                    rango.x - rango.w > this.x + this.w ||
+                    rango.x + rango.w < this.x - this.w ||
+                    rango.y - rango.h > this.y + this.h ||
+                    rango.y + rango.h < this.y - this.h
+                );
+            }
+        }
+
+        class QuadTree {
+            constructor(limite) {
+                this.limite = limite;
+                this.puntos = [];
+                this.dividido = false;
+
+                this.noreste = null;
+                this.noroeste = null;
+                this.sureste = null;
+                this.suroeste = null;
+            }
+
+            insertar(punto) {
+                if (!this.limite.contiene(punto)) {
+                    return false;
+                }
+
+                if (!this.dividido && this.puntos.length < 2) {
+                    this.puntos.push(punto);
+                    return true;
+                }
+
+                if (!this.dividido) {
+                    this.subdividir();
+                }
+
+                if (this.noreste.insertar(punto)) return true;
+                if (this.noroeste.insertar(punto)) return true;
+                if (this.sureste.insertar(punto)) return true;
+                if (this.suroeste.insertar(punto)) return true;
+
+                return false;
+            }
+
+            subdividir() {
+                let x = this.limite.x;
+                let y = this.limite.y;
+                let w = this.limite.w / 2;
+                let h = this.limite.h / 2;
+
+                let ne = new Rectangulo(x + w, y - h, w, h);
+                this.noreste = new QuadTree(ne);
+                let no = new Rectangulo(x - w, y - h, w, h);
+                this.noroeste = new QuadTree(no);
+                let se = new Rectangulo(x + w, y + h, w, h);
+                this.sureste = new QuadTree(se);
+                let so = new Rectangulo(x - w, y + h, w, h);
+                this.suroeste = new QuadTree(so);
+
+                this.dividido = true;
+
+                // Reinsertar los puntos actuales en los subcuadrantes
+                for (let punto of this.puntos) {
+                    if (this.noreste.insertar(punto)) continue;
+                    if (this.noroeste.insertar(punto)) continue;
+                    if (this.sureste.insertar(punto)) continue;
+                    if (this.suroeste.insertar(punto)) continue;
+                }
+
+                this.puntos = [];
+            }
+
+            consultar(rango, encontrados) {
+                if (!encontrados) {
+                    encontrados = [];
+                }
+
+                if (!this.limite.intersecta(rango)) {
+                    return encontrados;
+                } else {
+                    for (let p of this.puntos) {
+                        if (rango.contiene(p)) {
+                            encontrados.push(p);
+                        }
+                    }
+                    if (this.dividido) {
+                        this.noroeste.consultar(rango, encontrados);
+                        this.noreste.consultar(rango, encontrados);
+                        this.suroeste.consultar(rango, encontrados);
+                        this.sureste.consultar(rango, encontrados);
+                    }
+                }
+                return encontrados;
+            }
+
+            mostrar(ctx) {
+                ctx.strokeStyle = '#999';
+                ctx.strokeRect(
+                    this.limite.x - this.limite.w,
+                    this.limite.y - this.limite.h,
+                    this.limite.w * 2,
+                    this.limite.h * 2
+                );
+                if (this.dividido) {
+                    this.noroeste.mostrar(ctx);
+                    this.noreste.mostrar(ctx);
+                    this.suroeste.mostrar(ctx);
+                    this.sureste.mostrar(ctx);
+                }
+                for (let p of this.puntos) {
+                    ctx.fillStyle = '#f00';
+                    ctx.fillRect(p.x, p.y, 4, 4);
+                }
+            }
+        }
+
+        function configurar() {
+            const canvas = document.getElementById('quadTreeCanvas');
+            const ctx = canvas.getContext('2d');
+            const limite = new Rectangulo(300, 300, 300, 300);
+            const qt = new QuadTree(limite);
+
+            function dibujar() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                qt.mostrar(ctx);
+            }
+
+            canvas.addEventListener('click', (event) => {
+                const rect = canvas.getBoundingClientRect();
+                const x = event.clientX - rect.left;
+                const y = event.clientY - rect.top;
+                const p = new Punto(x, y);
+                qt.insertar(p);
+                dibujar();
+            });
+
+            dibujar();
+        }
+
+        configurar();
+    </script>
+</body>
+</html>
